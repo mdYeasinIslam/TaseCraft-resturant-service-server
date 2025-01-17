@@ -1,7 +1,7 @@
 require('dotenv').config()
 const express = require('express')
 const cors = require('cors')
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express()
 const port = process.env.PORT || 5000
 
@@ -29,25 +29,52 @@ async function run() {
     //   await client.connect();
       const database = client.db('TasteCraft_resturant').collection('menuItems')
       const shopItemCollection = client.db('TasteCraft_resturant').collection('shopItems')
+      const usersCollection = client.db('TasteCraft_resturant').collection('users')
 
     //menu items collect from db and send to the client side
       app.get('/menuItem', async (req, res) => {
           const result = await database.find().toArray()
           res.send(result)
       })
+    
+    //--------------cart related api integration--------------------
+
     // get each shop-item from client and insert to the db
     app.post('/shopCarts', async (req, res) => {
       const body = req.body;
-      console.log(body)
       const result = await shopItemCollection.insertOne(body)
       res.send({success:true,message:'Successfully add to the db'})
     })
     //get shopCarts item from db and send to the client
     app.get('/shopCarts', async (req, res) => {
-      const result = await shopItemCollection.find().toArray()
+      const email = req.query.email
+      const query = {userEmail:email}
+      const result = await shopItemCollection.find(query).toArray()
       res.send(result)
     })
+    app.delete('/shopCarts/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const deleteItem = await shopItemCollection.deleteOne(query)
+      res.send(deleteItem)
+    })
+    //-----------------------------------
+
+    //---------------User collection-------------------
     
+    app.post('/users', async (req, res) => {
+      const body = req.body
+      const query = { email: body.email }
+      const findExistingEmail = await usersCollection.findOne(query)
+      if (findExistingEmail) {
+        return res.send({status:false,message:'The user already created.'})
+      }
+      const result = await usersCollection.insertOne(body)
+      res.send(result)
+    })
+
+
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
