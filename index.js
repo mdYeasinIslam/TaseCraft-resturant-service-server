@@ -72,9 +72,29 @@ async function run() {
       const result = await usersCollection.insertOne(body)
       res.send(result)
     })
-
-
-
+    app.get('/users', async (req, res) => {
+      const result = await usersCollection.find().toArray()
+      res.send(result)
+    })
+    app.delete('/users/:id', async (req, res) => {
+      const id = req.params.id
+      const filter = { _id: new ObjectId(id) }
+      const deleteuser = await usersCollection.deleteOne(filter)
+      res.send(deleteuser)
+    })
+    app.patch('/users/:id', async (req, res) => {
+      const id = req.params.id
+      const body = req.body
+      console.log(id,body)
+      const filter = {_id:new ObjectId(id)}
+      const updateField = {
+        $set: {
+          role:body.role
+        }
+      }
+      const result = await usersCollection.updateOne(filter, updateField)
+      res.send({result,role:body.role})
+    })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
