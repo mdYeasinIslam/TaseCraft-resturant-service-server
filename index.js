@@ -10,20 +10,17 @@ const port = process.env.PORT || 5000
 app.use(cors())
 app.use(express.json())
 
-const varifyToken = (req, res, next) => {
+const varifyToken =async (req, res, next) => {
   if (!req.headers.authorization) {
-    return res.status(401).send({message:"forbidden access"})
+    return res.status(401).send({message:"unAuthorized access"})
   }
   const token = req.headers.authorization?.split(' ')[1]
   jwt.verify(token,process.env.jwt_secret, (err, decode) => {
     if (err) {
-      return res.status(401).send({message:"forbidden access"})
+      return res.status(401).send({message:"unAuthorized access"})
     }
-    else {
-      req.decoded =decode
+    req.decoded = decode
     next()
-    }
-    
   })
 }
 
@@ -53,7 +50,18 @@ async function run() {
       const token = jwt.sign(userInfo,process.env.jwt_secret, { expiresIn: '1h' })
       res.send(token)
     })
-   
+
+    const varifyAdmin = async(req,res,next) => {
+    const email = req.decoded.email
+    const query = { email: email }
+      const user = await usersCollection.findOne(query)
+      const isAdmin = user?.role === 'Admin'
+      if (!isAdmin) {
+        return res.status(403).send({message:'forbidden access'})
+      }
+      next()
+    
+  }
     
     //menu items collect from db and send to the client side
       app.get('/menuItem', async (req, res) => {
@@ -99,39 +107,36 @@ async function run() {
 
     //varify jwt token when get users data from db and send to the client
     //can use a midlewire
-    app.get('/users', varifyToken, async (req, res) => {
-      // console.log(req.headers)
-      
+    app.get('/users',varifyToken,varifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray()
       res.send(result)
     })
+
     //get single user and check is the "Admini" or no via variafytoke midlewire
-    app.get('/users/admin',varifyToken, async (req, res) => {
-      // const email = req.params.email
-      const email = req.query?.email
-      let admin = false
-      
-      const filter = { email: email }
-      // console.log(req.decoded,email)
-      
-      if (!email == req.decoded.email) {
-        return res.status(401).send({message:'forbidden access'})
+    app.get('/users/admin/:email',varifyToken, async (req, res) => {
+      const email = req.params.email
+        
+      if (email !== req.decoded.email) {
+        return res.status(403).send({message:'forbidden access'})
       }
-      const findUser =await usersCollection.findOne(filter)
-      console.log(findUser)
-      if (findUser) {
-        admin = findUser?.role ==='Admin'
+      const filter = { email: email }
+      const findUser = await usersCollection.findOne(filter)
+
+      let admin = false
+
+      if (findUser && findUser.role == 'Admin') {
+        admin = true;
       }
       res.send({admin})
     })
 
-    app.delete('/users/:id', async (req, res) => {
+    app.delete('/users/:id',varifyToken,varifyAdmin,async (req, res) => {
       const id = req.params.id
       const filter = { _id: new ObjectId(id) }
       const deleteuser = await usersCollection.deleteOne(filter)
       res.send(deleteuser)
     })
-    app.patch('/users/:id', async (req, res) => {
+    app.patch('/users/:id',varifyToken,varifyAdmin, async (req, res) => {
       const id = req.params.id
       const body = req.body
       const filter = {_id:new ObjectId(id)}
